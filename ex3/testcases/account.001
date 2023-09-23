@@ -1,0 +1,31 @@
+(* Illegal Symbol Exception *)
+MODULE program;
+        (* define the type--AccountRecord *)
+        TYPE 
+                AccountRecord = RECORD
+                    id: INTEGER;
+                    salary: INTEGER
+       	END;
+	
+        (*Find the max salary among n accounts *)
+        PROCEDURE FindMax;
+	VAR x, n, i: INTEGER;	
+	        accounts: ARRAY 100 of AccountRecord;
+        BEGIN
+	Read(n);
+	i := 1;
+	x@ := 0;
+
+	WHILE ( i < n  ) DO
+	        
+	        Read(acc@ounts[i].salary);
+	        if accounts[i].salary > x THEN
+		x := 1
+	        ELSE
+		x := x
+                        END;
+            	        i := i + 1;
+    	END;
+    	Write(x); Write(n); Write(i); WriteLn
+        END FindMax;
+END program.

@@ -1,0 +1,760 @@
+import exceptions.*;
+import java_cup.runtime.*;
+import callgraph.*;
+import java.util.*;
+
+
+parser code {:
+	public String current_procedure;
+	public int callee;
+	public Vector<String> procedure;
+	public Vector<String>	call_sites;
+	public Vector<String>	call_edges;
+	public Vector<Token>	symbols;
+	public CallGraph graph;
+:}
+
+init with  {:
+	callee = 1;
+	graph = new CallGraph();
+	procedure = new Vector<String>();
+	call_sites = new Vector<String>();
+	call_edges = new Vector<String>();
+	symbols = new Vector<Token>();
+:}
+
+scan with {: 
+	return getScanner().next_token(); 
+:};
+
+terminal PROCEDURE,MODULE,BEGIN,END,CONST,TYPE,VAR,RECORD,ARRAY,OF,WHILE,DO,IF,THEN, ELSIF, ELSE,INTEGER, BOOLEAN,DIV, MOD,OR,
+	EQUAL,ASSIGNMENT, NOTEQUAL, LessThan, LessThanOrEqual, GreatThan, GreatThanOrEqual,PLUS, MINUS,NOT, TIMES,AND,
+	SEMICOLON, POINT,COMMA,LeftBracket, RightBracket, LeftParenthesis, RightParenthesis,COLON,TRUE , FALSE,READ, WRITE, WRITELN;
+
+terminal String	IDENTIFIER;
+terminal String	NUMBER;
+
+non terminal	const_declarations, type_declarations, var_declarations, const_list, type_list, var_list;
+non terminal	readwritestatement, procedure_call, assignment;
+non terminal	statement_sequence, statement, while_statement, if_statement, elsif_statement, else_statement;
+non terminal String	module, module_body, declarations, procedure_declaration, procedure_begin;
+non terminal String	procedure_heading, procedure_body;
+non terminal String	format_parameters, fp_section;
+non terminal Vector<Token> identifier_list;
+non terminal Token field_list,record_type,field_list_list,array_type,expression_list ,special_type	,expression , actual_parameters ,selector , simple_expression, term,term_list,factor,simple_expression_list;
+
+precedence right ASSIGNMENT;
+precedence left OR;
+precedence left AND;
+precedence right NOT;
+precedence left LessThan, LessThanOrEqual, GreatThan, GreatThanOrEqual,EQUAL, NOTEQUAL ;
+precedence left PLUS, MINUS;
+precedence left TIMES, DIV, MOD;
+precedence left LeftParenthesis;
+
+
+module ::= 	MODULE IDENTIFIER:id1 SEMICOLON declarations module_body END IDENTIFIER:id2 POINT {: 
+			if (!id1.equals(id2))
+				throw new SemanticException();
+			int flag = 0;
+			/* call sites */
+			for (int i=0;i<parser.call_sites.size();i++) {
+				String[] splitInformation = parser.call_sites.elementAt(i).split("=");
+				parser.graph.addCallSite(splitInformation[0], splitInformation[1], splitInformation[2]);
+			}
+			/* edges */
+			for (int i=0; i< parser.call_edges.size(); i++){
+				String[] splitInformation = parser.call_edges.elementAt(i).split("=");
+				parser.graph.addEdge(splitInformation[0], splitInformation[1]);
+			}
+			
+			/* Procedure match */
+			for (int i=0; i< parser.call_edges.size(); i++){
+				String[] splitEdges = parser.call_edges.elementAt(i).split("=");
+				boolean found = false;
+				for(int j=0;j< parser.procedure.size();j++){
+					String[] splitProcedure = parser.procedure.elementAt(j).split("=");
+					if (splitEdges[1].equals(splitProcedure[0]))
+						found=true;
+				}
+				if (!found) throw new SemanticException();
+			}
+			/* Parameter*/
+			for (int i=0; i<parser.call_sites.size();i++){
+				String[] splitSites = parser.call_sites.elementAt(i).split("=");
+				for(int j=0; j< parser.procedure.size();j++){
+					String[] splitProcedure = parser.procedure.elementAt(j).split("=");
+
+					if ((splitSites[2]).substring(0,(splitSites[2].indexOf("("))).equals(splitProcedure[0])){
+						
+						String parameters1 = splitSites[3].replace(",","").replace(" ","");
+						String parameters2 = splitProcedure[1].replace(",","").replace(" ","").replace("(","").replace(")","");
+						if (!parameters1.equals(parameters2))
+							throw new ParameterMismatchedException();
+					}					
+				}
+			}
+			parser.graph.show();		
+		:};
+declarations ::=	const_declarations type_declarations var_declarations procedure_declaration	{::};
+procedure_declaration ::=	 {: parser.callee = 1; :} | 
+			procedure_declaration procedure_heading:head SEMICOLON procedure_body:body SEMICOLON {:	
+				if (!head.equals(body))
+					throw new SemanticException();
+				parser.current_procedure = "";
+				parser.callee = 1; :} ;
+
+procedure_heading ::=	PROCEDURE IDENTIFIER:procedureName format_parameters:formalParameters {:
+				String newProcedure = new String(procedureName + "=" + "( " + formalParameters + " )");
+				parser.procedure.addElement(newProcedure);
+				parser.graph.addProcedure(procedureName,procedureName + "( " + formalParameters + " )");
+				parser.current_procedure = procedureName;
+				parser.callee = 1;
+				RESULT = procedureName; :};
+
+format_parameters ::= {: RESULT = ""; :} | 
+			LeftParenthesis RightParenthesis {: RESULT = ""; :} | 
+			LeftParenthesis fp_section:fp_sectionReturnString RightParenthesis {: RESULT = fp_sectionReturnString ; :} |
+			fp_section:fp_sectionReturnString RightParenthesis {:  if (true) throw new MissingLeftParenthesisException(); :} ;
+
+fp_section ::=	fp_section:fp SEMICOLON identifier_list: identifierListReturnParamentNum COLON special_type: typeStringReturnFromspecial_type {:
+				for (int i=0; i<identifierListReturnParamentNum.size(); i++){
+					RESULT = fp + ", "+ typeStringReturnFromspecial_type.type ;
+				}
+		:} | 
+			fp_section:fp SEMICOLON VAR identifier_list: identifierListReturnParamentNum COLON special_type: typeStringReturnFromspecial_type {:
+				for (int i=0; i<identifierListReturnParamentNum.size(); i++){
+					RESULT = fp + ", "+ typeStringReturnFromspecial_type.type ;
+				}
+		:} |
+			identifier_list : identifierListReturnParamentNum COLON special_type: typeStringReturnFromspecial_type {:
+				RESULT = "";
+				for (int i=0; i<identifierListReturnParamentNum.size(); i++){
+					RESULT += " "+ typeStringReturnFromspecial_type.type ;
+				}
+			:} | 
+			VAR identifier_list: identifierListReturnParamentNum COLON special_type : typeStringReturnFromspecial_type {:	
+				RESULT = "";
+				for (int i=0; i<identifierListReturnParamentNum.size(); i++){
+					RESULT += " "+ typeStringReturnFromspecial_type.type	 ;
+				}
+ 			:} ;
+
+
+special_type ::=		
+			IDENTIFIER:identifier
+			{:
+				RESULT = new Token();
+				boolean found = false;
+				for (int i=0;i<parser.symbols.size();i++){
+					if (parser.symbols.elementAt(i).name.equals(identifier)){
+						RESULT.type = parser.symbols.elementAt(i).type;
+						found= true;
+					}
+				}
+				if (!found)
+					throw new SemanticException();
+				
+			:}
+		| INTEGER 
+			{:
+				RESULT = new Token();
+				RESULT.type = "INTEGER";
+			:}
+		| BOOLEAN
+			{:
+				RESULT = new Token();
+				RESULT.type = "BOOLEAN";
+			:}
+		| record_type: recordToken	
+			{: 
+				RESULT = new Token(recordToken);
+			:}
+		| array_type: arrayToken	
+			{: 
+				RESULT = new Token(arrayToken);
+
+			:}
+;
+
+array_type ::=	 ARRAY expression : expressionToken OF special_type :typeToken {:
+			RESULT = new Token();
+			RESULT.type= expressionToken.name  +"[" + typeToken.type +"]";
+		:};
+
+
+
+record_type ::=	 RECORD field_list:field_listTokne field_list_list: field_list_listToken END {:
+			RESULT = new Token();
+			RESULT.type = field_listTokne.type +field_list_listToken.type;
+		:} ;
+
+field_list ::=	
+			{:RESULT = new Token();:}
+		| 
+			identifier_list:identifierList COLON special_type: specialTypeToken
+			{:
+				RESULT = new Token();
+				for (int i=0;i<identifierList.size(); i++){
+					RESULT.type += specialTypeToken.type;
+					RESULT.name += identifierList.elementAt(i).name;
+				}
+
+
+			:}
+			
+;
+field_list_list ::=	
+			{:RESULT = new Token();:}
+		| 
+			field_list_list : field_list_listToken SEMICOLON field_list : field_listToken
+			{:
+				RESULT = new Token();
+				RESULT.name = field_list_listToken.name + field_listToken.name;
+				RESULT.type = field_list_listToken.type + field_listToken.type;
+			:}
+
+;
+
+
+identifier_list ::=	
+			IDENTIFIER : identifierName
+			{:
+				RESULT = new Vector<Token>();
+				RESULT.addElement(new Token(identifierName,""));
+			:}
+		| identifier_list : previerIndentifierListParamentNum COMMA IDENTIFIER: identifierName
+			{:
+				RESULT = previerIndentifierListParamentNum;
+				RESULT.addElement(new Token(identifierName,""));
+
+			:}
+;
+
+
+procedure_body ::=		
+			declarations procedure_begin END IDENTIFIER: procedreName
+		{:
+			RESULT = procedreName;
+		:};
+
+procedure_begin ::=	
+			
+		| 	
+			BEGIN statement_sequence 
+			
+;
+
+statement_sequence ::=	
+			statement 
+		| 
+			statement_sequence SEMICOLON statement	
+;
+
+statement	::=	assignment | procedure_call | if_statement | while_statement | readwritestatement | ;
+
+procedure_call ::=	IDENTIFIER: procedureName actual_parameters: actualParameters
+		{:
+			if (parser.callee==1 && parser.current_procedure.isEmpty()){
+				parser.current_procedure = "Main";
+				parser.graph.addProcedure("Main", "Main( )");
+				String newProcedure = new String(parser.current_procedure + "=" + "( "  + " )");
+				parser.procedure.addElement(newProcedure);
+			}
+
+			parser.call_sites.addElement(new String(parser.current_procedure+parser.callee + "=" + parser.current_procedure+"( )" + "=" + procedureName+"( "+actualParameters.name+")" + "=" + actualParameters.type));
+
+			parser.call_edges.addElement(new String(parser.current_procedure+parser.callee + "=" + procedureName));
+			parser.callee ++ ;
+			
+		:};
+
+actual_parameters::= {:
+			RESULT = new Token();			
+			:} | 
+			LeftParenthesis expression_list:parameters RightParenthesis {:
+				RESULT = new Token(parameters); 
+			:}
+		
+;
+
+expression_list ::=	 {:
+				RESULT = new Token();	
+			:} | 
+			expression:expressionToken {:
+				RESULT =new Token(expressionToken);
+				
+			:} |
+			expression_list: expressionNameList COMMA expression:expressionToken {:
+				RESULT = new Token();
+
+				RESULT.name = expressionNameList.name + ","+ expressionToken.name;
+				RESULT.type = expressionNameList.type + " " + expressionToken.type;
+			:}
+;
+
+
+expression ::= 
+			simple_expression :simpleExpressionToken {:
+				RESULT = new Token();
+				RESULT.name = simpleExpressionToken.name;
+				RESULT.type = simpleExpressionToken.type;
+			:}
+		|
+			simple_expression :simpleExpressionToken simple_expression_list :simpleExpressionListToken {:
+				if ((simpleExpressionToken.type.indexOf("INTEGER") ==-1 
+						&& simpleExpressionToken.type.indexOf("ARRAY") ==-1 
+						&& simpleExpressionToken.type.indexOf("RECORD") ==-1)){
+					throw new TypeMismatchedException();
+				}
+				RESULT = new Token();
+				RESULT.name = simpleExpressionToken.name + simpleExpressionListToken.name;
+				RESULT.type = "BOOLEAN";
+			:}
+
+;
+
+simple_expression_list ::=
+			EQUAL simple_expression : simpleExpressionToken
+			{:
+				if ((simpleExpressionToken.type.indexOf("INTEGER") ==-1 
+						&& simpleExpressionToken.type.indexOf("ARRAY") ==-1 
+						&& simpleExpressionToken.type.indexOf("RECORD") ==-1)){
+					throw new TypeMismatchedException();
+				}
+				RESULT = new Token();
+				RESULT.name = "=" + simpleExpressionToken.name;
+				RESULT.type = "BOOLEAN";
+			
+			:}
+		|
+
+			EQUAL 
+			{:
+				if (true) throw new MissingOperandException();
+			
+			:}
+		|
+			NOTEQUAL simple_expression :simpleExpressionToken
+			{:
+				if ((simpleExpressionToken.type.indexOf("INTEGER") ==-1 
+						&& simpleExpressionToken.type.indexOf("ARRAY") ==-1 
+						&& simpleExpressionToken.type.indexOf("RECORD") ==-1)){
+					throw new TypeMismatchedException();
+				}
+				RESULT = new Token();
+				RESULT.name = "#" + simpleExpressionToken.name;
+				RESULT.type = "BOOLEAN";
+			
+			:}
+		|
+			NOTEQUAL 
+			{:
+				if (true) throw new MissingOperandException();
+			
+			:}
+		|
+			LessThan simple_expression :simpleExpressionToken
+			{:
+				
+				if ((simpleExpressionToken.type.indexOf("INTEGER") ==-1 
+						&& simpleExpressionToken.type.indexOf("ARRAY") ==-1 
+						&& simpleExpressionToken.type.indexOf("RECORD") ==-1)){
+					throw new TypeMismatchedException();
+				}
+				RESULT = new Token();
+				RESULT.name = "<" + simpleExpressionToken.name;
+				RESULT.type = "BOOLEAN";
+			
+			:}
+		|
+			LessThan 
+			{:
+				if (true) throw new MissingOperandException();
+			
+			:}
+		|
+
+			LessThanOrEqual  simple_expression :simpleExpressionToken
+			{:
+				if ((simpleExpressionToken.type.indexOf("INTEGER") ==-1 
+						&& simpleExpressionToken.type.indexOf("ARRAY") ==-1 
+						&& simpleExpressionToken.type.indexOf("RECORD") ==-1)){
+					throw new TypeMismatchedException();
+				}
+				RESULT = new Token();
+				RESULT.name = "<=" + simpleExpressionToken.name;
+				RESULT.type = "BOOLEAN";
+			
+			:}
+		|
+			LessThanOrEqual 
+			{:
+				if (true) throw new MissingOperandException();
+			
+			:}
+		|
+			GreatThan simple_expression :simpleExpressionToken
+			{:
+				if ((simpleExpressionToken.type.indexOf("INTEGER") ==-1 
+						&& simpleExpressionToken.type.indexOf("ARRAY") ==-1 
+						&& simpleExpressionToken.type.indexOf("RECORD") ==-1)){
+					throw new TypeMismatchedException();
+				}
+				RESULT = new Token();
+				RESULT.name = ">" + simpleExpressionToken.name;
+				RESULT.type = "BOOLEAN";
+			
+			:}
+		|
+			GreatThan 
+			{:
+				if (true) throw new MissingOperandException();
+			
+			:}
+		|
+			GreatThanOrEqual  simple_expression :simpleExpressionToken
+			{:
+				if ((simpleExpressionToken.type.indexOf("INTEGER") ==-1 
+						&& simpleExpressionToken.type.indexOf("ARRAY") ==-1 
+						&& simpleExpressionToken.type.indexOf("RECORD") ==-1)){
+					throw new TypeMismatchedException();
+				}
+				RESULT = new Token();
+				RESULT.name = ">=" + simpleExpressionToken.name;
+				RESULT.type = "BOOLEAN";
+			
+			:}
+		|
+			GreatThanOrEqual 
+			{:
+				if (true) throw new MissingOperandException();
+			
+			:}
+
+;
+
+
+simple_expression ::= /*["+" | "-"] term {("+" | "-" | "OR") term} */
+
+				term : termToken  term_list : termListToken
+				{:
+					
+					RESULT = new Token();
+					RESULT.name = termToken.name + termListToken.name;
+					RESULT.type = termToken.type;
+				:}
+			|
+				PLUS term : termToken term_list : termListToken
+				{:
+
+					if ((termToken.type.indexOf("INTEGER") ==-1 
+						&& termToken.type.indexOf("ARRAY") ==-1 
+						&& termToken.type.indexOf("RECORD") ==-1)|| 
+						(termListToken.type.indexOf("INTEGER") ==-1 
+						&& termListToken.type.indexOf("ARRAY") ==-1 
+						&& termListToken.type.indexOf("RECORD") ==-1)){
+						throw new TypeMismatchedException();
+					}
+					RESULT = new Token();
+					RESULT.name = "+" + termToken.name + termListToken.name;
+					RESULT.type = termToken.type;
+				:}
+			| 
+				MINUS term : termToken term_list: termListToken
+				{:
+
+					if ((termToken.type.indexOf("INTEGER") ==-1 
+						&& termToken.type.indexOf("ARRAY") ==-1 
+						&& termToken.type.indexOf("RECORD") ==-1)|| 
+						(termListToken.type.indexOf("INTEGER") ==-1 
+						&& termListToken.type.indexOf("ARRAY") ==-1 
+						&& termListToken.type.indexOf("RECORD") ==-1)){
+						throw new TypeMismatchedException();
+					}
+					RESULT = new Token();
+					RESULT.name = "-" + termToken.name + termListToken.name;
+					RESULT.type = termToken.type;
+				:}
+
+;
+
+term ::= 
+		factor : factorToken
+		{:
+		
+			RESULT = new Token(factorToken);
+			
+		:}
+	|
+		term : termToken TIMES factor : factorToken
+		{:
+			if ((termToken.type.indexOf("INTEGER") ==-1 
+						&& termToken.type.indexOf("ARRAY") ==-1 
+						&& termToken.type.indexOf("RECORD") ==-1)|| 
+						(factorToken.type.indexOf("INTEGER") ==-1 
+						&& factorToken.type.indexOf("ARRAY") ==-1 
+						&& factorToken.type.indexOf("RECORD") ==-1)){
+				throw new TypeMismatchedException();
+			}
+			RESULT = new Token();
+			RESULT.name = termToken.name + "*"+factorToken.name;
+			RESULT.type = "INTEGER";
+		:}
+	|
+		term: termToken DIV factor: factorToken
+		{:
+			if ((termToken.type.indexOf("INTEGER") ==-1 
+						&& termToken.type.indexOf("ARRAY") ==-1 
+						&& termToken.type.indexOf("RECORD") ==-1)|| 
+						(factorToken.type.indexOf("INTEGER") ==-1 
+						&& factorToken.type.indexOf("ARRAY") ==-1 
+						&& factorToken.type.indexOf("RECORD") ==-1)){
+				throw new TypeMismatchedException();
+			}
+			RESULT = new Token();
+			RESULT.name = termToken.name + "/" +factorToken.name;
+			RESULT.type = "INTEGER";
+		:}
+	|
+		term: termToken MOD factor : factorToken
+		{:
+			if ((termToken.type.indexOf("INTEGER") ==-1 
+						&& termToken.type.indexOf("ARRAY") ==-1 
+						&& termToken.type.indexOf("RECORD") ==-1)|| 
+						(factorToken.type.indexOf("INTEGER") ==-1 
+						&& factorToken.type.indexOf("ARRAY") ==-1 
+						&& factorToken.type.indexOf("RECORD") ==-1)){
+				throw new TypeMismatchedException();
+			}
+			RESULT = new Token();
+			RESULT.name = termToken.name + "MOD" +factorToken.name;
+			RESULT.type = "INTEGER";
+		:}
+	|
+		term: termToken AND factor: factorToken
+		{:
+		
+			if ((termToken.type.indexOf("BOOLEAN") ==-1 
+						&& termToken.type.indexOf("ARRAY") ==-1 
+						&& termToken.type.indexOf("RECORD") ==-1)|| 
+						(factorToken.type.indexOf("BOOLEAN") ==-1 
+						&& factorToken.type.indexOf("ARRAY") ==-1 
+						&& factorToken.type.indexOf("RECORD") ==-1)){
+				throw new TypeMismatchedException();
+			}
+			RESULT = new Token();
+			RESULT.name = termToken.name + "AND" +factorToken.name;
+			RESULT.type = "BOOLEAN";
+		:}
+	|
+		TRUE 
+		{:
+			RESULT = new Token("","BOOLEAN");
+		:}
+	|
+		FALSE
+		{:
+			RESULT = new Token("","BOOLEAN");
+		:}
+;
+
+
+
+term_list ::= 
+			{:RESULT = new Token();:}
+		|
+			term_list: termListToken  PLUS term : termToken
+			{:
+				
+				if ((termToken.type.indexOf("INTEGER") ==-1 
+						&& termToken.type.indexOf("ARRAY") ==-1 
+						&& termToken.type.indexOf("RECORD") ==-1)|| 
+						(termListToken.type.indexOf("INTEGER") ==-1 
+						&& termListToken.type.indexOf("ARRAY") ==-1 
+						&& termListToken.type.indexOf("RECORD") ==-1)
+						&& termListToken.type != ""){
+					throw new TypeMismatchedException();
+				}
+				RESULT = new Token();
+				RESULT.name = termListToken.name + "+" +termToken.name;
+				RESULT.type = termToken.type;
+			
+			:}
+		|
+
+			term_list: termListToken  PLUS END
+			{:
+				if (true) throw new MissingOperandException();
+		
+			:}
+		|
+			term_list: termListToken MINUS term: termToken
+			{:
+
+				if ((termToken.type.indexOf("INTEGER") ==-1 
+						&& termToken.type.indexOf("ARRAY") ==-1 
+						&& termToken.type.indexOf("RECORD") ==-1)|| 
+						(termListToken.type.indexOf("INTEGER") ==-1 
+						&& termListToken.type.indexOf("ARRAY") ==-1 
+						&& termListToken.type.indexOf("RECORD") ==-1)
+						&& termListToken.type != ""){
+					throw new TypeMismatchedException();
+				}
+				RESULT = new Token();
+				RESULT.name = termListToken.name + "-" +termToken.name;
+				RESULT.type = termToken.type;
+			
+			:}
+		|
+			term_list: termListToken OR term: termToken
+			{:
+
+				if ((termToken.type.indexOf("BOOLEAN") ==-1 
+						&& termToken.type.indexOf("ARRAY") ==-1 
+						&& termToken.type.indexOf("RECORD") ==-1)|| 
+						(termListToken.type.indexOf("BOOLEAN") ==-1 
+						&& termListToken.type.indexOf("ARRAY") ==-1 
+						&& termListToken.type.indexOf("RECORD") ==-1)
+						&& termListToken.type != ""){
+					throw new TypeMismatchedException();
+				}
+				RESULT = new Token();
+				RESULT.name = termListToken.name + "OR" +termToken.name;
+				RESULT.type = termToken.type;
+			
+			:}
+		
+;
+
+factor ::= IDENTIFIER: identifier selector: selectorValue {:
+				RESULT = new Token();
+				if (selectorValue.type == ""){
+					RESULT.name = identifier;
+					RESULT.type = "INTEGER";
+				} else {
+					RESULT.name = identifier + selectorValue.name;
+					RESULT.type = selectorValue.type;
+				} :} | 
+			NUMBER :number {:
+				RESULT = new Token(number,"INTEGER");
+			:} | 
+			LeftParenthesis expression:expressionToken RightParenthesis	 {:	
+				RESULT = new Token(); 
+				RESULT.name = "(" + expressionToken.name + ")";	
+				RESULT.type = expressionToken.type;
+			:} | 
+			LeftParenthesis expression:expressionToken 	END {:	
+				if (true) throw new MissingRightParenthesisException();
+			:} | 
+			NOT factor : factorToken {:
+				if (factorToken.type != "BOOLEAN")
+					throw new TypeMismatchedException();
+				RESULT = new Token(); 
+				RESULT.name = "~" + factorToken.name;
+				RESULT.type = factorToken.type;
+			:} |
+			NUMBER NUMBER {:
+				if (true) throw new MissingOperatorException();
+			:} |
+			IDENTIFIER IDENTIFIER {:
+				if (true) throw new MissingOperatorException();
+			:}		
+
+
+;
+
+selector ::= selector : previerSelectorName  POINT IDENTIFIER: selectorIndetifier {:	
+			RESULT = new Token();
+			RESULT.name += previerSelectorName.name + "."+ selectorIndetifier;
+			RESULT.type = "RECORD" ;
+		:} | selector : previerSelectorName LeftBracket expression : expressionToken RightBracket  {:
+			RESULT = new Token();
+			
+			RESULT.name  += previerSelectorName.name + "[" + expressionToken.name + "]";
+			RESULT.type = "ARRAY" ;
+		:} | {:
+			RESULT = new Token("","");
+		:} ;
+	
+
+
+const_declarations ::=	 | CONST const_list  ;
+
+const_list	::=	const_list IDENTIFIER:identifierName EQUAL expression:expressionToken SEMICOLON  {:
+			parser.symbols.addElement(new Token(identifierName,expressionToken.type)); :} |  ;
+
+
+type_declarations ::= | TYPE type_list ;
+
+
+type_list ::= type_list IDENTIFIER:identifier EQUAL special_type:typeToken SEMICOLON {:
+				parser.symbols.addElement(new Token(identifier,typeToken.type)); :} |  ;
+
+
+var_declarations ::= VAR var_list  | ;
+
+var_list ::= var_list identifier_list:identifierList COLON special_type:typeToken SEMICOLON {:
+				for (int i=0;i<identifierList.size();i++)
+					parser.symbols.addElement(new Token(identifierList.elementAt(i).name,typeToken.type));
+			:} |  ;
+
+module_body ::=	 BEGIN statement_sequence  | ;
+
+
+readwritestatement ::=	READ LeftParenthesis RightParenthesis {:
+							if (true) throw new MissingOperandException();
+						:} |
+						READ LeftParenthesis expression:expressionToken RightParenthesis |
+						READ IDENTIFIER RightParenthesis  | 
+						READ LeftParenthesis IDENTIFIER  | 
+						WRITE IDENTIFIER RightParenthesis  | 
+						WRITE LeftParenthesis IDENTIFIER | 
+						WRITE LeftParenthesis  RightParenthesis | 
+						WRITE LeftParenthesis expression:expressionToken RightParenthesis | 
+						WRITELN 
+;
+
+if_statement ::=	
+			IF expression:expressionToken THEN statement_sequence elsif_statement else_statement END	;
+
+elsif_statement ::=	
+		
+		|
+			elsif_statement ELSIF expression:expressionToken THEN statement_sequence ;
+
+
+else_statement ::=
+
+		|
+			ELSE statement_sequence	;
+
+
+while_statement ::=	
+			WHILE expression:expressionToken DO statement_sequence END	;
+
+
+assignment ::=	
+			IDENTIFIER:identifier selector:selectorName  ASSIGNMENT expression:expressionToken	
+		{:
+			boolean found = false;
+			for (int i=0; i<parser.symbols.size();i++){
+				if (parser.symbols.elementAt(i).name.equals(identifier))
+					if (parser.symbols.elementAt(i).type != expressionToken.type)
+						throw new TypeMismatchedException();
+			}
+		:}
+;
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,45 @@
+MODULE program;
+       (* define the type--AccountRecord *)
+        TYPE 
+                AccountRecord = RECORD
+                    id: INTEGER;
+                    salary: INTEGER
+       	END;
+         VAR res: INTEGER;
+	
+        PROCEDURE sum (m , n: INTEGER);
+	VAR n, m: INTEGER;
+        BEGIN
+                res := n + m;
+        END sum;    
+
+        PROCEDURE add (m : INTEGER);
+	VAR m: INTEGER;
+        BEGIN
+	if m # 0 THEN
+		 res := res + m;
+                        END;
+        END add;     
+
+        (*Find the max salary among n accounts *)
+        PROCEDURE FindMax;
+	VAR x, n, i, k: INTEGER;	
+	        accounts: ARRAY 100 of AccountRecord;
+        BEGIN
+	sum(7,8);
+	add(4);
+	Read(n);
+	i := 1;
+	x := 0;
+	WHILE ( i < n ) DO
+	        Read(k);
+	        if k > x THEN
+		x := k
+	        ELSE
+		x := x
+                        END;
+            	        i := i + 1;
+    	END;
+    	Write(x); Write(n); Write(i); WriteLn
+        END FindMax;
+END program.

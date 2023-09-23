@@ -1,0 +1,39 @@
+(* Parameter Mismatched Exception *)
+MODULE program;
+        (* 定义账户类型 *)
+        TYPE 
+                AccountRecord = RECORD
+                    id: INTEGER;
+                    salary: INTEGER
+       	END;
+	
+        (* 寻找n个账户中薪资的最大值 *)
+        PROCEDURE FindMax;
+	VAR x, n, i: INTEGER;	
+	        accounts: ARRAY 100 of AccountRecord;
+        BEGIN
+	Read(n);
+	i := 1;
+	x := 0;
+	if n > 0 THEN
+	        accounts[0].id = 0;
+	        x := Read(accounts[0].salary)
+	END;
+	WHILE ( i < n & i < 100 ) DO
+	        accounts[i].id = i;
+	        Read(accounts[i].salary);
+	        if accounts[i].salary > x THEN
+		x := accounts[i].salary
+	        ELSE
+		x := x
+                        END;
+            	        i := i + 1;
+    	END;
+    	Write(x); Write(n); Write(i); WriteLn
+        END FindMax;
+
+        PROCEDURE call();  
+        BEGIN   
+	Findmax(5);  
+        END call;
+END program.
