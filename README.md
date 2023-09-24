@@ -1,6 +1,6 @@
 # 面向 Oberon-0 的逆向工程工具  ROSE
 
-本仓库内为2022年春季学期中山大学计算机学院编译原理课程的实验项目5 ROSE。
+本仓库内为2022年春季学期中山大学编译原理课程的实验项目5 ROSE。
 
 开发一个面向 Oberon-0 的逆向工程工具，根据一个输入的 Oberon-0 源程序自动绘制对应的设计图，这些设计图
 包括子程序调用关系图和程序控制流设计图（例如程序流程图、 PAD 图、 N_S 图等）， 本实验项目命名为ROSE，意为 Reverse Oberon Software Engineering。  设计过程涉及词法分析、语法分析、语法制导翻译、自动生成工具等重要环节。    
@@ -52,7 +52,7 @@
 
 ---
 
-In this warehouse is the experimental project 5 ROSE of the Compiling principle course of School of Computer Science & Engineering, Sun Yat-Sen University in the spring semester of 2022.
+This is the experimental project 5 ROSE for the Compiling principle course of Sun Yat-Sen University in the spring semester of 2022.
 
 Develop a reverse engineering tool for Oberon-0 to automatically draw corresponding design drawings according to an input Oberon-0 source program. It includes subroutine call relationship diagram and program control flow design diagram (such as program flow diagram, PAD diagram, N_S diagram, etc.). This experimental project is named ROSE, which means Reverse Oberon Software Engineering. The design process involves lexical analysis, syntax analysis, syntax guidance translation, automatic generation tools and so on.
 
