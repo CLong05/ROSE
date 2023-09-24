@@ -52,7 +52,7 @@
 
 ---
 
-This is the experimental project 5 ROSE for the Compiling principle course of Sun Yat-Sen University in the spring semester of 2022.
+This is the experimental project 5 ROSE for the Compiling principle course of Sun Yat-sen University in the spring semester of 2022.
 
 Develop a reverse engineering tool for Oberon-0 to automatically draw corresponding design drawings according to an input Oberon-0 source program. It includes subroutine call relationship diagram and program control flow design diagram (such as program flow diagram, PAD diagram, N_S diagram, etc.). This experimental project is named ROSE, which means Reverse Oberon Software Engineering. The design process involves lexical analysis, syntax analysis, syntax guidance translation, automatic generation tools and so on.
 
